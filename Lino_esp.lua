@@ -1,11 +1,6 @@
---[[.txt
-[file content begin]
 --[[
     ========================================================
-    XENO AIO CHIT HUB v3.5 - УЛУЧШЕННЫЙ ДИЗАЙН + SKELETON + TRIGGERBOT
-    Разработан для Xeno Executor
-    Стиль: Киберпанк (улучшенный)
-    Ключи: Insert - Открыть/Закрыть меню
+    XENO AIO CHIT HUB v3.5 - РАСШИРЕННАЯ ВЕРСИЯ (ПОЛНЫЙ КОД)
     ========================================================
 ]]
 
@@ -31,7 +26,7 @@ local success, err = pcall(function()
         return math.max(min, math.min(max, val))
     end
 
-    -- Анти-детект (обновлён)
+    -- Анти-детект
     local function AntiBan()
         if CoreGui:FindFirstChild("XenoHub") then
             CoreGui.XenoHub:Destroy()
@@ -52,7 +47,7 @@ local success, err = pcall(function()
     AntiBan()
 
     -- ==================================================
-    -- БЛОК 2: НАСТРОЙКИ
+    -- БЛОК 2: НАСТРОЙКИ (ДОБАВЛЕНЫ НОВЫЕ ПАРАМЕТРЫ)
     -- ==================================================
 
     local Settings = {
@@ -88,15 +83,33 @@ local success, err = pcall(function()
     local Features = {
         Aimbot = {
             Enabled = false,
-            Smoothness = 0.3,
             MaxDistance = 200,
             FOV = 60,
             TargetPart = "Head",
             ShowFOV = false,
             VisibleCheck = false,
-            -- [TRIGGERBOT] новые параметры
-            Triggerbot = false,
-            TriggerDelay = 0.1
+            TeamCheck = false,
+            Triggerbot = true,
+            TriggerDelay = 2.0,
+            TriggerInterval = 0.3,
+            AutoFire = false,
+            HoldToAim = false,
+            Priority = "Angle",
+            -- НОВЫЕ ФУНКЦИИ
+            SilentAim = false,
+            Wallbang = false,
+            TriggerOnlyHead = true,
+            Prediction = false,
+            PredictionTime = 0.1,
+            AntiRecoil = false,
+            RecoilCompensation = 0.5,
+            NoSpread = false,
+            TargetSwitchDelay = 0.5,
+            TargetParts = {
+                Head = true,
+                Neck = false,
+                Body = false
+            }
         },
         Movement = {
             Fly = false,
@@ -111,131 +124,127 @@ local success, err = pcall(function()
         }
     }
 
-    -- [TRIGGERBOT] переменная для контроля времени последнего выстрела
+    -- Переменные для контроля времени
     local lastShotTime = 0
+    local targetAcquiredTime = 0
+    local currentTarget = nil
+    local isAiming = false
+    local lastTargetSwitchTime = 0
 
     -- ==================================================
-    -- БЛОК 3: GUI + ВОДЯНОЙ ЗНАК (УЛУЧШЕННЫЙ ДИЗАЙН)
+    -- БЛОК 3: GUI + ЭКРАН ЗАГРУЗКИ
     -- ==================================================
 
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "XenoHub_" .. math.random(1000, 9999)
     ScreenGui.Parent = CoreGui
 
-    -- Водяной знак (с улучшенной стилизацией)
-    local WatermarkFrame = Instance.new("Frame")
-    WatermarkFrame.Name = "Watermark"
-    WatermarkFrame.Size = UDim2.new(0, 210, 0, 115)
-    WatermarkFrame.Position = UDim2.new(1, -225, 1, -130)
-    WatermarkFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 28)
-    WatermarkFrame.BackgroundTransparency = 0.15
-    WatermarkFrame.BorderSizePixel = 0
-    WatermarkFrame.Parent = ScreenGui
+    -- ========== ЭКРАН ЗАГРУЗКИ ==========
+    local LoadingFrame = Instance.new("Frame")
+    LoadingFrame.Name = "LoadingFrame"
+    LoadingFrame.Size = UDim2.new(1, 0, 1, 0)
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 28)
+    LoadingFrame.BackgroundTransparency = 0
+    LoadingFrame.BorderSizePixel = 0
+    LoadingFrame.Parent = ScreenGui
 
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 14)
-    Corner.Parent = WatermarkFrame
-
-    -- Неоновая рамка (толще)
-    local Glow = Instance.new("Frame")
-    Glow.Size = UDim2.new(1, 6, 1, 6)
-    Glow.Position = UDim2.new(0, -3, 0, -3)
-    Glow.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
-    Glow.BackgroundTransparency = 0.6
-    Glow.BorderSizePixel = 0
-    Glow.Parent = WatermarkFrame
-
-    -- Градиент для водяного знака
-    local grad = Instance.new("UIGradient")
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 240, 255)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 0, 170)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 240, 255))
+    local loadGrad = Instance.new("UIGradient")
+    loadGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 10, 40)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 10, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 40))
     })
-    grad.Rotation = 45
-    grad.Parent = Glow
+    loadGrad.Rotation = 45
+    loadGrad.Parent = LoadingFrame
 
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(1, 0, 0, 30)
-    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = "✦ Lino ✦"
-    TitleLabel.TextColor3 = Color3.fromRGB(0, 240, 255)
-    TitleLabel.TextSize = 22
-    TitleLabel.Font = Enum.Font.GothamBold
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-    TitleLabel.Parent = WatermarkFrame
+    local LoadTitle = Instance.new("TextLabel")
+    LoadTitle.Size = UDim2.new(0, 400, 0, 60)
+    LoadTitle.Position = UDim2.new(0.5, -200, 0.35, 0)
+    LoadTitle.BackgroundTransparency = 1
+    LoadTitle.Text = "XENO HUB v3.5"
+    LoadTitle.TextColor3 = Color3.fromRGB(0, 240, 255)
+    LoadTitle.TextSize = 40
+    LoadTitle.Font = Enum.Font.GothamBold
+    LoadTitle.TextXAlignment = Enum.TextXAlignment.Center
+    LoadTitle.Parent = LoadingFrame
 
-    local NameLabel = Instance.new("TextLabel")
-    NameLabel.Size = UDim2.new(1, 0, 0, 22)
-    NameLabel.Position = UDim2.new(0, 0, 0, 32)
-    NameLabel.BackgroundTransparency = 1
-    NameLabel.Text = LocalPlayer.Name
-    NameLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
-    NameLabel.TextSize = 16
-    NameLabel.Font = Enum.Font.Gotham
-    NameLabel.TextXAlignment = Enum.TextXAlignment.Center
-    NameLabel.Parent = WatermarkFrame
+    local LoadSub = Instance.new("TextLabel")
+    LoadSub.Size = UDim2.new(0, 300, 0, 30)
+    LoadSub.Position = UDim2.new(0.5, -150, 0.45, 0)
+    LoadSub.BackgroundTransparency = 1
+    LoadSub.Text = "Loading..."
+    LoadSub.TextColor3 = Color3.fromRGB(180, 180, 255)
+    LoadSub.TextSize = 20
+    LoadSub.Font = Enum.Font.GothamMedium
+    LoadSub.TextXAlignment = Enum.TextXAlignment.Center
+    LoadSub.Parent = LoadingFrame
 
-    local DateLabel = Instance.new("TextLabel")
-    DateLabel.Size = UDim2.new(1, 0, 0, 20)
-    DateLabel.Position = UDim2.new(0, 0, 0, 56)
-    DateLabel.BackgroundTransparency = 1
-    DateLabel.Text = os.date("%d.%m.%Y %H:%M")
-    DateLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
-    DateLabel.TextSize = 13
-    DateLabel.Font = Enum.Font.Gotham
-    DateLabel.TextXAlignment = Enum.TextXAlignment.Center
-    DateLabel.Parent = WatermarkFrame
+    local ProgressBg = Instance.new("Frame")
+    ProgressBg.Size = UDim2.new(0, 400, 0, 10)
+    ProgressBg.Position = UDim2.new(0.5, -200, 0.55, 0)
+    ProgressBg.BackgroundColor3 = Color3.fromRGB(40, 40, 70)
+    ProgressBg.BorderSizePixel = 0
+    ProgressBg.Parent = LoadingFrame
+    local progCorner = Instance.new("UICorner")
+    progCorner.CornerRadius = UDim.new(0, 5)
+    progCorner.Parent = ProgressBg
 
-    local FPSLabel = Instance.new("TextLabel")
-    FPSLabel.Size = UDim2.new(1, 0, 0, 20)
-    FPSLabel.Position = UDim2.new(0, 0, 0, 78)
-    FPSLabel.BackgroundTransparency = 1
-    FPSLabel.Text = "FPS: 0"
-    FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
-    FPSLabel.TextSize = 14
-    FPSLabel.Font = Enum.Font.Gotham
-    FPSLabel.TextXAlignment = Enum.TextXAlignment.Center
-    FPSLabel.Parent = WatermarkFrame
+    local ProgressFill = Instance.new("Frame")
+    ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+    ProgressFill.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+    ProgressFill.BorderSizePixel = 0
+    ProgressFill.Parent = ProgressBg
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 5)
+    fillCorner.Parent = ProgressFill
 
-    local frameCount = 0
-    local lastTime = tick()
+    local ProgressText = Instance.new("TextLabel")
+    ProgressText.Size = UDim2.new(0, 100, 0, 30)
+    ProgressText.Position = UDim2.new(0.5, -50, 0.6, 0)
+    ProgressText.BackgroundTransparency = 1
+    ProgressText.Text = "0%"
+    ProgressText.TextColor3 = Color3.fromRGB(200, 200, 255)
+    ProgressText.TextSize = 18
+    ProgressText.Font = Enum.Font.Gotham
+    ProgressText.TextXAlignment = Enum.TextXAlignment.Center
+    ProgressText.Parent = LoadingFrame
+
+    local LoadGlow = Instance.new("Frame")
+    LoadGlow.Size = UDim2.new(0, 420, 0, 30)
+    LoadGlow.Position = UDim2.new(0.5, -210, 0.53, 0)
+    LoadGlow.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+    LoadGlow.BackgroundTransparency = 0.7
+    LoadGlow.BorderSizePixel = 0
+    LoadGlow.Parent = LoadingFrame
+    local glowCorner = Instance.new("UICorner")
+    glowCorner.CornerRadius = UDim.new(0, 10)
+    glowCorner.Parent = LoadGlow
 
     task.spawn(function()
-        while true do
-            task.wait(1)
-            DateLabel.Text = os.date("%d.%m.%Y %H:%M")
-            local currentTime = tick()
-            local delta = currentTime - lastTime
-            if delta > 0 then
-                local fps = math.floor(frameCount / delta)
-                FPSLabel.Text = "FPS: " .. fps
-                frameCount = 0
-                lastTime = currentTime
+        while LoadingFrame.Visible do
+            for i = 0.3, 0.8, 0.05 do
+                LoadGlow.BackgroundTransparency = i
+                task.wait(0.05)
+            end
+            for i = 0.8, 0.3, -0.05 do
+                LoadGlow.BackgroundTransparency = i
+                task.wait(0.05)
             end
         end
     end)
 
-    RunService.RenderStepped:Connect(function()
-        frameCount = frameCount + 1
-    end)
-
-    -- ==================================================
-    -- ГЛАВНОЕ МЕНЮ (УЛУЧШЕННЫЙ ДИЗАЙН)
-    -- ==================================================
-
+    -- ========== ГЛАВНОЕ МЕНЮ ==========
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 580, 0, 520)
-    MainFrame.Position = UDim2.new(0.5, -290, 0.5, -260)
+    MainFrame.Size = UDim2.new(0, 620, 0, 560)
+    MainFrame.Position = UDim2.new(0.5, -310, 0.5, -280)
     MainFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 28)
     MainFrame.BackgroundTransparency = 0.08
     MainFrame.BorderSizePixel = 0
     MainFrame.Parent = ScreenGui
     MainFrame.Visible = false
+    MainFrame.BackgroundTransparency = 1
 
-    -- Стеклянный эффект (градиент)
     local glass = Instance.new("UIGradient")
     glass.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 10, 40)),
@@ -245,7 +254,6 @@ local success, err = pcall(function()
     glass.Rotation = 90
     glass.Parent = MainFrame
 
-    -- Тень
     local shadow = Instance.new("Frame")
     shadow.Size = UDim2.new(1, 10, 1, 10)
     shadow.Position = UDim2.new(0, -5, 0, -5)
@@ -255,10 +263,9 @@ local success, err = pcall(function()
     shadow.ZIndex = 0
     shadow.Parent = MainFrame
     local shadowCorner = Instance.new("UICorner")
-    shadowCorner.CornerRadius = UDim.new(0, 16)
+    shadowCorner.CornerRadius = UDim.new(0, 20)
     shadowCorner.Parent = shadow
 
-    -- Неоновая рамка (двойная)
     local GlowBorder = Instance.new("Frame")
     GlowBorder.Size = UDim2.new(1, 6, 1, 6)
     GlowBorder.Position = UDim2.new(0, -3, 0, -3)
@@ -267,9 +274,9 @@ local success, err = pcall(function()
     GlowBorder.BorderSizePixel = 0
     GlowBorder.ZIndex = 1
     GlowBorder.Parent = MainFrame
-    local glowCorner = Instance.new("UICorner")
-    glowCorner.CornerRadius = UDim.new(0, 16)
-    glowCorner.Parent = GlowBorder
+    local glowCorner1 = Instance.new("UICorner")
+    glowCorner1.CornerRadius = UDim.new(0, 20)
+    glowCorner1.Parent = GlowBorder
 
     local GlowBorder2 = Instance.new("Frame")
     GlowBorder2.Size = UDim2.new(1, 2, 1, 2)
@@ -280,26 +287,24 @@ local success, err = pcall(function()
     GlowBorder2.ZIndex = 1
     GlowBorder2.Parent = MainFrame
     local glowCorner2 = Instance.new("UICorner")
-    glowCorner2.CornerRadius = UDim.new(0, 16)
+    glowCorner2.CornerRadius = UDim.new(0, 20)
     glowCorner2.Parent = GlowBorder2
 
-    -- Заголовок
     local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 45)
+    Title.Size = UDim2.new(1, 0, 0, 50)
     Title.Position = UDim2.new(0, 0, 0, 0)
     Title.BackgroundColor3 = Color3.fromRGB(20, 20, 50)
     Title.BackgroundTransparency = 0.3
     Title.Text = "⚡ XENO HUB v3.5 ⚡"
     Title.TextColor3 = Color3.fromRGB(0, 240, 255)
-    Title.TextSize = 24
+    Title.TextSize = 26
     Title.Font = Enum.Font.GothamBold
     Title.BorderSizePixel = 0
     Title.Parent = MainFrame
 
-    -- Панель вкладок (с градиентом)
     local TabBar = Instance.new("Frame")
-    TabBar.Size = UDim2.new(1, 0, 0, 40)
-    TabBar.Position = UDim2.new(0, 0, 0, 45)
+    TabBar.Size = UDim2.new(1, 0, 0, 45)
+    TabBar.Position = UDim2.new(0, 0, 0, 50)
     TabBar.BackgroundColor3 = Color3.fromRGB(15, 15, 40)
     TabBar.BackgroundTransparency = 0.5
     TabBar.BorderSizePixel = 0
@@ -317,11 +322,11 @@ local success, err = pcall(function()
     local CurrentTab = "ESP"
 
     local ContentContainer = Instance.new("ScrollingFrame")
-    ContentContainer.Size = UDim2.new(1, -20, 1, -100)
-    ContentContainer.Position = UDim2.new(0, 10, 0, 90)
+    ContentContainer.Size = UDim2.new(1, -20, 1, -110)
+    ContentContainer.Position = UDim2.new(0, 10, 0, 100)
     ContentContainer.BackgroundTransparency = 1
     ContentContainer.BorderSizePixel = 0
-    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, 600)
+    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, 900) -- увеличен для новых элементов
     ContentContainer.ScrollBarThickness = 4
     ContentContainer.ScrollBarImageColor3 = Color3.fromRGB(0, 240, 255)
     ContentContainer.Parent = MainFrame
@@ -331,7 +336,6 @@ local success, err = pcall(function()
     ContentLayout.Padding = UDim.new(0, 6)
     ContentLayout.Parent = ContentContainer
 
-    -- Создание кнопок вкладок с анимацией
     local function CreateTabButton(tabName, index)
         local btn = Instance.new("TextButton")
         local tabCount = #Tabs
@@ -384,7 +388,7 @@ local success, err = pcall(function()
     end
 
     -- ==================================================
-    -- БЛОК 4: КОНТРОЛЛЫ (УЛУЧШЕННЫЕ)
+    -- БЛОК 4: КОНТРОЛЛЫ (БЕЗ ИЗМЕНЕНИЙ)
     -- ==================================================
 
     local ContentElements = {}
@@ -620,7 +624,7 @@ local success, err = pcall(function()
     end
 
     -- ==================================================
-    -- БЛОК 5: ЗАПОЛНЕНИЕ ВКЛАДОК
+    -- БЛОК 5: ЗАПОЛНЕНИЕ ВКЛАДОК (С НОВЫМИ ЭЛЕМЕНТАМИ)
     -- ==================================================
 
     function RefreshContent()
@@ -638,17 +642,80 @@ local success, err = pcall(function()
             AddColorPicker("Skeleton Color", Settings.Colors.Skeleton, function(c) Settings.Colors.Skeleton = c end)
             AddSlider("Line Thickness", 1, 5, Settings.Thickness, 1, function(v) Settings.Thickness = v end)
             AddSlider("FOV Range", 100, 2000, Settings.FOV, 50, function(v) Settings.FOV = v end)
+            AddToggle("👥 Team Check (ESP)", Settings.TeamCheck, function(v) Settings.TeamCheck = v end)
+            AddToggle("👁️ Visible Only (ESP)", Settings.VisibleCheck, function(v) Settings.VisibleCheck = v end)
             
         elseif CurrentTab == "Aimbot" then
             AddToggle("🎯 Aimbot", Features.Aimbot.Enabled, function(v) Features.Aimbot.Enabled = v end)
-            -- [TRIGGERBOT] добавлены новые элементы управления
             AddToggle("🔫 Triggerbot", Features.Aimbot.Triggerbot, function(v) Features.Aimbot.Triggerbot = v end)
-            AddSlider("Задержка выстрела (сек)", 0.05, 1, Features.Aimbot.TriggerDelay, 0.05, function(v) Features.Aimbot.TriggerDelay = v end)
-            AddSlider("Сглаживание", 0.1, 1, Features.Aimbot.Smoothness, 0.1, function(v) Features.Aimbot.Smoothness = v end)
+            AddToggle("⚡ Авто-огонь", Features.Aimbot.AutoFire, function(v) Features.Aimbot.AutoFire = v end)
+            AddToggle("🎯 Только при прицеливании (ПКМ)", Features.Aimbot.HoldToAim, function(v) Features.Aimbot.HoldToAim = v end)
+            
+            -- НОВЫЕ ФУНКЦИИ
+            AddToggle("🤫 Silent Aim (№3)", Features.Aimbot.SilentAim, function(v) Features.Aimbot.SilentAim = v end)
+            AddToggle("🧱 Wallbang (№6)", Features.Aimbot.Wallbang, function(v) 
+                Features.Aimbot.Wallbang = v
+                if v then Features.Aimbot.VisibleCheck = false end
+            end)
+            AddToggle("🎯 Triggerbot только голова (№8)", Features.Aimbot.TriggerOnlyHead, function(v) Features.Aimbot.TriggerOnlyHead = v end)
+            AddToggle("📐 Prediction (№9)", Features.Aimbot.Prediction, function(v) Features.Aimbot.Prediction = v end)
+            AddSlider("Время упреждения (сек)", 0.05, 0.5, Features.Aimbot.PredictionTime, 0.05, function(v) Features.Aimbot.PredictionTime = v end)
+            AddToggle("🔫 Anti-Recoil (№10)", Features.Aimbot.AntiRecoil, function(v) Features.Aimbot.AntiRecoil = v end)
+            AddSlider("Компенсация отдачи", 0, 1, Features.Aimbot.RecoilCompensation, 0.1, function(v) Features.Aimbot.RecoilCompensation = v end)
+            AddToggle("🎯 NoSpread (№11)", Features.Aimbot.NoSpread, function(v) Features.Aimbot.NoSpread = v end)
+            
+            -- Выбор части тела (№12) – три переключателя
+            AddToggle("🎯 Цель: Голова", Features.Aimbot.TargetParts.Head, function(v)
+                if v then
+                    Features.Aimbot.TargetParts.Head = true
+                    Features.Aimbot.TargetParts.Neck = false
+                    Features.Aimbot.TargetParts.Body = false
+                    Features.Aimbot.TargetPart = "Head"
+                else
+                    Features.Aimbot.TargetParts.Head = false
+                    Features.Aimbot.TargetParts.Body = true
+                    Features.Aimbot.TargetPart = "UpperTorso"
+                end
+            end)
+            AddToggle("🎯 Цель: Шея", Features.Aimbot.TargetParts.Neck, function(v)
+                if v then
+                    Features.Aimbot.TargetParts.Head = false
+                    Features.Aimbot.TargetParts.Neck = true
+                    Features.Aimbot.TargetParts.Body = false
+                    Features.Aimbot.TargetPart = "Neck"
+                else
+                    Features.Aimbot.TargetParts.Neck = false
+                    Features.Aimbot.TargetParts.Head = true
+                    Features.Aimbot.TargetPart = "Head"
+                end
+            end)
+            AddToggle("🎯 Цель: Тело", Features.Aimbot.TargetParts.Body, function(v)
+                if v then
+                    Features.Aimbot.TargetParts.Head = false
+                    Features.Aimbot.TargetParts.Neck = false
+                    Features.Aimbot.TargetParts.Body = true
+                    Features.Aimbot.TargetPart = "UpperTorso"
+                else
+                    Features.Aimbot.TargetParts.Body = false
+                    Features.Aimbot.TargetParts.Head = true
+                    Features.Aimbot.TargetPart = "Head"
+                end
+            end)
+
+            AddSlider("Задержка переключения цели (№19)", 0, 2, Features.Aimbot.TargetSwitchDelay, 0.1, function(v) Features.Aimbot.TargetSwitchDelay = v end)
+            AddSlider("Задержка перед выстрелом (сек)", 0, 5, Features.Aimbot.TriggerDelay, 0.1, function(v) Features.Aimbot.TriggerDelay = v end)
+            AddSlider("Интервал между выстрелами (сек)", 0, 2, Features.Aimbot.TriggerInterval, 0.05, function(v) Features.Aimbot.TriggerInterval = v end)
+            AddToggle("👥 Team Check", Features.Aimbot.TeamCheck, function(v) Features.Aimbot.TeamCheck = v end)
+            AddToggle("Приоритет по углу (вкл) / по дистанции (выкл)", Features.Aimbot.Priority == "Angle", function(v)
+                if v then Features.Aimbot.Priority = "Angle" else Features.Aimbot.Priority = "Distance" end
+            end)
+            AddToggle("Приоритет по здоровью", Features.Aimbot.Priority == "Health", function(v)
+                if v then Features.Aimbot.Priority = "Health" else Features.Aimbot.Priority = "Angle" end
+            end)
             AddSlider("Макс. дистанция", 50, 500, Features.Aimbot.MaxDistance, 10, function(v) Features.Aimbot.MaxDistance = v end)
             AddSlider("FOV (градусы)", 10, 180, Features.Aimbot.FOV, 5, function(v) Features.Aimbot.FOV = v end)
             AddToggle("Показывать FOV", Features.Aimbot.ShowFOV, function(v) Features.Aimbot.ShowFOV = v end)
-            AddToggle("Только видимые", Features.Aimbot.VisibleCheck, function(v) Features.Aimbot.VisibleCheck = v end)
+            AddToggle("Только видимые (для аимбота)", Features.Aimbot.VisibleCheck, function(v) Features.Aimbot.VisibleCheck = v end)
             
         elseif CurrentTab == "Movement" then
             AddToggle("🪁 Fly", Features.Movement.Fly, function(v) 
@@ -665,8 +732,6 @@ local success, err = pcall(function()
             
         elseif CurrentTab == "Misc" then
             AddToggle("👑 God Mode", Features.Misc.GodMode, function(v) Features.Misc.GodMode = v end)
-            AddToggle("👥 Team Check", Settings.TeamCheck, function(v) Settings.TeamCheck = v end)
-            AddToggle("👁️ Visible Only", Settings.VisibleCheck, function(v) Settings.VisibleCheck = v end)
             AddToggle("🛡️ Anti-AFK", Settings.AntiAFK, function(v) Settings.AntiAFK = v end)
             
             AddActionButton("🔄 Server Hop", function()
@@ -737,10 +802,9 @@ local success, err = pcall(function()
     TabButtons["ESP"].TextColor3 = Color3.fromRGB(0, 0, 0)
 
     -- ==================================================
-    -- БЛОК 6: ФУНКЦИИ ПРИМЕНЕНИЯ СОСТОЯНИЙ (ИСПРАВЛЕН NOCLIP)
+    -- БЛОК 6: ФУНКЦИИ ДВИЖЕНИЯ (без изменений)
     -- ==================================================
 
-    -- Применение Noclip с компенсацией гравитации (надёжная версия)
     function ApplyNoclipState(enabled)
         local char = LocalPlayer.Character
         if not char then return end
@@ -748,43 +812,35 @@ local success, err = pcall(function()
         local hum = char:FindFirstChild("Humanoid")
         if not root or not hum then return end
 
-        -- Удаляем старый BodyForce, если есть
         local oldForce = root:FindFirstChild("NoclipForce")
         if oldForce then oldForce:Destroy() end
 
         if enabled then
-            -- Отключаем коллизию у всех частей, включая HumanoidRootPart
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
                 end
             end
-            -- Если Fly выключен, добавляем компенсирующую силу (чтобы не падать)
             if not Features.Movement.Fly then
                 local bf = Instance.new("BodyForce")
                 bf.Name = "NoclipForce"
                 bf.Force = Vector3.new(0, Workspace.Gravity * hum.Mass, 0)
                 bf.Parent = root
             end
-            -- PlatformStand НЕ включаем, чтобы можно было ходить
         else
-            -- Включаем коллизию у всех частей
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = true
                 end
             end
-            -- Если Fly выключен, убеждаемся, что PlatformStand выключен
             if not Features.Movement.Fly then
                 hum.PlatformStand = false
             end
-            -- Удаляем BodyForce (на всякий случай)
             local bf = root:FindFirstChild("NoclipForce")
             if bf then bf:Destroy() end
         end
     end
 
-    -- Применение Fly (используем BodyVelocity и PlatformStand)
     function ApplyFlyState(enabled)
         local char = LocalPlayer.Character
         if not char then return end
@@ -793,7 +849,6 @@ local success, err = pcall(function()
         if not root or not hum then return end
 
         if enabled then
-            -- Создаём BodyVelocity для полёта
             local bv = root:FindFirstChild("FlyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity")
@@ -803,21 +858,17 @@ local success, err = pcall(function()
                 bv.Parent = root
             end
             hum.PlatformStand = true
-            -- Если Noclip включён, убираем его BodyForce, чтобы не конфликтовали
             if Features.Movement.Noclip then
                 local bf = root:FindFirstChild("NoclipForce")
                 if bf then bf:Destroy() end
             end
         else
-            -- Удаляем BodyVelocity
             local bv = root:FindFirstChild("FlyVelocity")
             if bv then bv:Destroy() end
-            -- Если Noclip выключен, отключаем PlatformStand
             if not Features.Movement.Noclip then
                 hum.PlatformStand = false
             end
             root.Velocity = Vector3.new(0, 0, 0)
-            -- Если Noclip включён, восстанавливаем его BodyForce
             if Features.Movement.Noclip then
                 local bf = root:FindFirstChild("NoclipForce")
                 if not bf then
@@ -831,7 +882,7 @@ local success, err = pcall(function()
     end
 
     -- ==================================================
-    -- БЛОК 7: ESP СИСТЕМА (ДОБАВЛЕН SKELETON)
+    -- БЛОК 7: ESP СИСТЕМА (ПОЛНОСТЬЮ ВОССТАНОВЛЕНА)
     -- ==================================================
 
     local ESP_Objects = {}
@@ -886,7 +937,6 @@ local success, err = pcall(function()
         return Settings.Colors.Enemy
     end
 
-    -- Функция для отрисовки скелета
     local function DrawSkeleton(player, color, transparency)
         local char = player.Character
         if not char then return end
@@ -901,12 +951,10 @@ local success, err = pcall(function()
             RightFoot = char:FindFirstChild("RightFoot"),
         }
 
-        -- Проверяем наличие всех частей
         for name, part in pairs(parts) do
             if not part or not part.Parent then return end
         end
 
-        -- Создаём или обновляем линии в ESP_Objects[player].SkeletonLines
         local obj = ESP_Objects[player]
         if not obj.SkeletonLines then
             obj.SkeletonLines = {}
@@ -918,7 +966,6 @@ local success, err = pcall(function()
             end
         end
 
-        -- Получаем позиции частей в координатах экрана
         local headPos, headOn = Camera:WorldToViewportPoint(parts.Head.Position)
         local upperPos, upperOn = Camera:WorldToViewportPoint(parts.UpperTorso.Position)
         local lowerPos, lowerOn = Camera:WorldToViewportPoint(parts.LowerTorso.Position)
@@ -927,7 +974,6 @@ local success, err = pcall(function()
         local lFootPos, lFootOn = Camera:WorldToViewportPoint(parts.LeftFoot.Position)
         local rFootPos, rFootOn = Camera:WorldToViewportPoint(parts.RightFoot.Position)
 
-        -- Если какая-то часть не на экране, скрываем все линии
         if not (headOn and upperOn and lowerOn and lHandOn and rHandOn and lFootOn and rFootOn) then
             for _, line in pairs(obj.SkeletonLines) do
                 line.Visible = false
@@ -936,37 +982,26 @@ local success, err = pcall(function()
         end
 
         local lines = obj.SkeletonLines
-        -- Голова → Верхняя часть туловища
         lines[1].From = Vector2.new(headPos.X, headPos.Y)
         lines[1].To = Vector2.new(upperPos.X, upperPos.Y)
         lines[1].Color = color
         lines[1].Visible = true
-
-        -- Верхняя часть туловища → Нижняя часть туловища
         lines[2].From = Vector2.new(upperPos.X, upperPos.Y)
         lines[2].To = Vector2.new(lowerPos.X, lowerPos.Y)
         lines[2].Color = color
         lines[2].Visible = true
-
-        -- Верхняя часть туловища → Левая рука
         lines[3].From = Vector2.new(upperPos.X, upperPos.Y)
         lines[3].To = Vector2.new(lHandPos.X, lHandPos.Y)
         lines[3].Color = color
         lines[3].Visible = true
-
-        -- Верхняя часть туловища → Правая рука
         lines[4].From = Vector2.new(upperPos.X, upperPos.Y)
         lines[4].To = Vector2.new(rHandPos.X, rHandPos.Y)
         lines[4].Color = color
         lines[4].Visible = true
-
-        -- Нижняя часть туловища → Левая нога
         lines[5].From = Vector2.new(lowerPos.X, lowerPos.Y)
         lines[5].To = Vector2.new(lFootPos.X, lFootPos.Y)
         lines[5].Color = color
         lines[5].Visible = true
-
-        -- Нижняя часть туловища → Правая нога
         lines[6].From = Vector2.new(lowerPos.X, lowerPos.Y)
         lines[6].To = Vector2.new(rFootPos.X, rFootPos.Y)
         lines[6].Color = color
@@ -1027,7 +1062,6 @@ local success, err = pcall(function()
                         o.HeadDot.Filled = true
                         o.HeadDot.NumSides = 16
                         o.Health.Thickness = 3
-                        -- Инициализируем линии скелета
                         for i = 1, 6 do
                             local line = Drawing.new("Line")
                             line.Thickness = Settings.Thickness
@@ -1043,7 +1077,6 @@ local success, err = pcall(function()
                     local size = math.clamp(10000 / math.max(dist, 1), 10, 500)
                     local x, y = pos.X, pos.Y
                     
-                    -- Box
                     if Settings.Box then
                         o.Box.Visible = onScreen
                         if onScreen then
@@ -1055,7 +1088,6 @@ local success, err = pcall(function()
                         end
                     else o.Box.Visible = false end
                     
-                    -- Name
                     if Settings.Name then
                         o.Name.Visible = onScreen
                         if onScreen then
@@ -1065,7 +1097,6 @@ local success, err = pcall(function()
                         end
                     else o.Name.Visible = false end
                     
-                    -- Distance
                     if Settings.Distance then
                         o.Distance.Visible = onScreen
                         if onScreen then
@@ -1075,7 +1106,6 @@ local success, err = pcall(function()
                         end
                     else o.Distance.Visible = false end
                     
-                    -- Tracer
                     if Settings.Tracer then
                         o.Tracer.Visible = onScreen
                         if onScreen then
@@ -1086,7 +1116,6 @@ local success, err = pcall(function()
                         end
                     else o.Tracer.Visible = false end
                     
-                    -- HeadDot
                     if Settings.HeadDot then
                         local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
                         o.HeadDot.Visible = headOnScreen
@@ -1098,7 +1127,6 @@ local success, err = pcall(function()
                         end
                     else o.HeadDot.Visible = false end
                     
-                    -- Skeleton
                     if Settings.Skeleton then
                         DrawSkeleton(player, Settings.Colors.Skeleton, Settings.Transparency)
                     else
@@ -1109,7 +1137,6 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    -- Health
                     if Settings.Health and hum then
                         o.Health.Visible = onScreen
                         if onScreen then
@@ -1173,29 +1200,72 @@ local success, err = pcall(function()
     end
 
     -- ==================================================
-    -- БЛОК 9: AIMBOT + TRIGGERBOT
+    -- БЛОК 9: AIMBOT + ТРИГГЕРБОТ (ОБНОВЛЁННЫЙ)
     -- ==================================================
 
+    -- Функция проверки видимости (с учётом Wallbang)
+    local function IsTargetVisible(targetPart)
+        if Features.Aimbot.Wallbang then
+            return true
+        end
+        if not targetPart then return false end
+        local origin = Camera.CFrame.Position
+        local targetPos = targetPart.Position
+        local direction = (targetPos - origin).Unit
+        local distance = (targetPos - origin).Magnitude
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Blacklist
+        params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+        local result = workspace:Raycast(origin, direction * distance, params)
+        if result then
+            local hit = result.Instance
+            if hit and hit:IsDescendantOf(targetPart.Parent) then
+                return true
+            else
+                return false
+            end
+        else
+            return true
+        end
+    end
+
+    -- Функция получения цели (с Prediction)
     local function GetClosestPlayer()
-        local closest = nil
-        local closestDist = Features.Aimbot.MaxDistance
+        local best = nil
+        local bestScore = math.huge
         local fovRad = math.rad(Features.Aimbot.FOV / 2)
         local camPos = Camera.CFrame.Position
         local camDir = Camera.CFrame.LookVector
+        local priority = Features.Aimbot.Priority
+        local teamCheck = Features.Aimbot.TeamCheck
 
         for _, player in pairs(Players:GetPlayers()) do
             if player == LocalPlayer then continue end
             if not player.Character or not player.Character:FindFirstChild("Humanoid") then continue end
             if player.Character.Humanoid.Health <= 0 then continue end
 
-            local target = player.Character:FindFirstChild(Features.Aimbot.TargetPart) or player.Character:FindFirstChild("Head")
-            if not target then continue end
+            if teamCheck and player.Team == LocalPlayer.Team then continue end
 
-            local pos = target.Position
+            local targetPart = player.Character:FindFirstChild(Features.Aimbot.TargetPart)
+            if not targetPart then
+                if Features.Aimbot.TargetPart == "Head" then targetPart = player.Character:FindFirstChild("Head")
+                elseif Features.Aimbot.TargetPart == "Neck" then targetPart = player.Character:FindFirstChild("Neck") or player.Character:FindFirstChild("Head")
+                else targetPart = player.Character:FindFirstChild("UpperTorso") or player.Character:FindFirstChild("HumanoidRootPart")
+                end
+            end
+            if not targetPart then continue end
+
+            local pos = targetPart.Position
+            -- Prediction
+            if Features.Aimbot.Prediction then
+                local velocity = targetPart.Velocity or Vector3.new(0,0,0)
+                pos = pos + velocity * Features.Aimbot.PredictionTime
+            end
+
             local distance = (camPos - pos).Magnitude
-            if distance > closestDist then continue end
+            if distance > Features.Aimbot.MaxDistance then continue end
 
-            if Features.Aimbot.VisibleCheck then
+            if not Features.Aimbot.Wallbang then
                 local params = RaycastParams.new()
                 params.FilterType = Enum.RaycastFilterType.Blacklist
                 params.FilterDescendantsInstances = {LocalPlayer.Character}
@@ -1209,53 +1279,179 @@ local success, err = pcall(function()
             local angle = math.acos(clamp(camDir:Dot(direction), -1, 1))
             if angle > fovRad then continue end
 
-            if not closest or distance < closestDist then
-                closest = player
-                closestDist = distance
+            local score
+            if priority == "Angle" then
+                score = angle
+            elseif priority == "Distance" then
+                score = distance
+            elseif priority == "Health" then
+                local hum = player.Character.Humanoid
+                score = 1 - (hum.Health / hum.MaxHealth)
+            end
+
+            if not best or score < bestScore then
+                best = player
+                bestScore = score
             end
         end
-        return closest, closestDist
+        return best, bestScore
     end
 
-    -- [TRIGGERBOT] функция выстрела
+    -- Функция выстрела (с Anti-Recoil и NoSpread)
     local function Shoot()
-        local char = LocalPlayer.Character
-        if not char then return end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then
-            pcall(function()
-                tool:Activate()
-            end)
+        -- Anti-Recoil
+        if Features.Aimbot.AntiRecoil then
+            local recoilOffset = Vector3.new(0, -Features.Aimbot.RecoilCompensation * 0.5, 0)
+            Camera.CFrame = Camera.CFrame * CFrame.new(recoilOffset)
         end
+
+        -- NoSpread
+        if Features.Aimbot.NoSpread then
+            local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+            if tool then
+                local weapon = tool:FindFirstChild("Weapon") or tool:FindFirstChild("Handle")
+                if weapon and weapon:FindFirstChild("Spread") then
+                    weapon.Spread.Value = 0
+                end
+            end
+        end
+
+        pcall(function()
+            local mouse = LocalPlayer:GetMouse()
+            if mouse then
+                mouse:Button1Down()
+                task.wait()
+                mouse:Button1Up()
+                return
+            end
+        end)
+        pcall(function()
+            local VIM = game:GetService("VirtualInputManager")
+            if VIM then
+                VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                task.wait()
+                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+            end
+        end)
     end
 
     local function UpdateAimbot()
         if not Features.Aimbot.Enabled then return end
-        local target = GetClosestPlayer()
-        if not target then return end
-        local targetPart = target.Character:FindFirstChild(Features.Aimbot.TargetPart) or target.Character:FindFirstChild("Head")
+
+        if Features.Aimbot.HoldToAim and not isAiming then
+            return
+        end
+
+        local target, _ = GetClosestPlayer()
+        local now = tick()
+
+        -- Задержка переключения цели
+        if target ~= currentTarget then
+            if now - lastTargetSwitchTime < Features.Aimbot.TargetSwitchDelay then
+                if target == nil then
+                    currentTarget = nil
+                end
+                return
+            else
+                lastTargetSwitchTime = now
+                currentTarget = target
+                targetAcquiredTime = now
+                lastShotTime = now - Features.Aimbot.TriggerDelay
+            end
+        end
+
+        if not target then
+            currentTarget = nil
+            return
+        end
+
+        local targetPart = target.Character:FindFirstChild(Features.Aimbot.TargetPart)
+        if not targetPart then
+            if Features.Aimbot.TargetPart == "Head" then targetPart = target.Character:FindFirstChild("Head")
+            elseif Features.Aimbot.TargetPart == "Neck" then targetPart = target.Character:FindFirstChild("Neck") or target.Character:FindFirstChild("Head")
+            else targetPart = target.Character:FindFirstChild("UpperTorso") or target.Character:FindFirstChild("HumanoidRootPart")
+            end
+        end
         if not targetPart then return end
+
+        -- Расчёт позиции с упреждением
         local targetPos = targetPart.Position
+        if Features.Aimbot.Prediction then
+            local velocity = targetPart.Velocity or Vector3.new(0,0,0)
+            targetPos = targetPos + velocity * Features.Aimbot.PredictionTime
+        end
+
         local camPos = Camera.CFrame.Position
         local direction = (targetPos - camPos).Unit
         local targetCF = CFrame.lookAt(camPos, camPos + direction)
-        local smooth = Features.Aimbot.Smoothness
-        local currentCF = Camera.CFrame
-        local newCF = currentCF:Lerp(targetCF, smooth)
-        Camera.CFrame = newCF
 
-        -- [TRIGGERBOT] автоматическая стрельба
+        -- Silent Aim – не меняем камеру, но остальное работает
+        if not Features.Aimbot.SilentAim then
+            Camera.CFrame = targetCF   -- Мгновенное наведение (без сглаживания)
+        end
+
+        -- Проверка, что прицел на цели (для триггера)
+        local currentDir = Camera.CFrame.LookVector
+        local angleToTarget = math.acos(clamp(currentDir:Dot(direction), -1, 1))
+        local isOnTarget = angleToTarget < math.rad(0.5)  -- 0.5 градуса
+
+        -- Определяем, можно ли стрелять
+        local canShoot = false
+
         if Features.Aimbot.Triggerbot then
-            local now = tick()
-            if now - lastShotTime >= Features.Aimbot.TriggerDelay then
-                Shoot()
-                lastShotTime = now
+            if Features.Aimbot.TriggerOnlyHead then
+                if targetPart.Name == "Head" or targetPart.Name == "Neck" then
+                    if isOnTarget then
+                        local timeSinceAcquired = now - targetAcquiredTime
+                        if timeSinceAcquired >= Features.Aimbot.TriggerDelay then
+                            if now - lastShotTime >= Features.Aimbot.TriggerInterval then
+                                canShoot = true
+                            end
+                        end
+                    end
+                end
+            else
+                if isOnTarget then
+                    local timeSinceAcquired = now - targetAcquiredTime
+                    if timeSinceAcquired >= Features.Aimbot.TriggerDelay then
+                        if now - lastShotTime >= Features.Aimbot.TriggerInterval then
+                            canShoot = true
+                        end
+                    end
+                end
             end
+        end
+
+        if Features.Aimbot.AutoFire then
+            if isOnTarget then
+                if now - lastShotTime >= Features.Aimbot.TriggerInterval then
+                    canShoot = true
+                end
+            end
+        end
+
+        if canShoot then
+            Shoot()
+            lastShotTime = now
         end
     end
 
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            isAiming = true
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            isAiming = false
+        end
+    end)
+
     -- ==================================================
-    -- БЛОК 10: MOVEMENT (обновление Fly и SpeedHack)
+    -- БЛОК 10: MOVEMENT
     -- ==================================================
 
     local function UpdateMovement()
@@ -1265,7 +1461,6 @@ local success, err = pcall(function()
         local hum = char:FindFirstChild("Humanoid")
         if not root or not hum then return end
 
-        -- Fly: обновляем скорость, если включен
         if Features.Movement.Fly then
             local bv = root:FindFirstChild("FlyVelocity")
             if not bv then
@@ -1294,7 +1489,6 @@ local success, err = pcall(function()
             if bv then bv:Destroy() end
         end
 
-        -- Speed Hack
         if Features.Movement.SpeedHack then
             if hum.WalkSpeed ~= Features.Movement.SpeedValue then
                 hum.WalkSpeed = Features.Movement.SpeedValue
@@ -1307,7 +1501,7 @@ local success, err = pcall(function()
     end
 
     -- ==================================================
-    -- БЛОК 11: MISC (GOD MODE)
+    -- БЛОК 11: MISC
     -- ==================================================
 
     local function UpdateMisc()
@@ -1344,7 +1538,49 @@ local success, err = pcall(function()
     end
 
     -- ==================================================
-    -- БЛОК 13: ГЛАВНЫЙ ЦИКЛ
+    -- БЛОК 13: ПРОЦЕСС ЗАГРУЗКИ
+    -- ==================================================
+
+    task.spawn(function()
+        for i = 0, 100, 1 do
+            ProgressFill.Size = UDim2.new(i/100, 0, 1, 0)
+            ProgressText.Text = tostring(i) .. "%"
+            if i == 100 then
+                ProgressText.Text = "Готово!"
+            end
+            task.wait(0.02)
+        end
+        task.wait(0.5)
+
+        LoadingFrame.Visible = false
+
+        MainFrame.Visible = true
+        MainFrame.BackgroundTransparency = 1
+        MainFrame.Size = UDim2.new(0, 620, 0, 0)
+        MainFrame.Position = UDim2.new(0.5, -310, 0.5, 0)
+
+        TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            BackgroundTransparency = 0.08,
+            Size = UDim2.new(0, 620, 0, 560),
+            Position = UDim2.new(0.5, -310, 0.5, -280)
+        }):Play()
+
+        local notif = Instance.new("TextLabel")
+        notif.Size = UDim2.new(0, 400, 0, 40)
+        notif.Position = UDim2.new(0.5, -200, 0.9, 0)
+        notif.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
+        notif.BackgroundTransparency = 0.3
+        notif.Text = "Xeno Hub v3.5 готов! Нажмите Insert"
+        notif.TextColor3 = Color3.fromRGB(0, 240, 255)
+        notif.TextSize = 18
+        notif.Font = Enum.Font.GothamBold
+        notif.BorderSizePixel = 0
+        notif.Parent = ScreenGui
+        Debris:AddItem(notif, 3)
+    end)
+
+    -- ==================================================
+    -- БЛОК 14: ГЛАВНЫЙ ЦИКЛ
     -- ==================================================
 
     local started = false
@@ -1354,7 +1590,6 @@ local success, err = pcall(function()
                 return
             end
             started = true
-            -- Применяем начальные состояния
             if Features.Movement.Noclip then ApplyNoclipState(true) end
             if Features.Movement.Fly then ApplyFlyState(true) end
         end
@@ -1370,36 +1605,37 @@ local success, err = pcall(function()
     RunService.Heartbeat:Connect(OnRenderStep)
 
     -- ==================================================
-    -- БЛОК 14: ОТКРЫТИЕ МЕНЮ
+    -- БЛОК 15: ОТКРЫТИЕ МЕНЮ (с анимацией)
     -- ==================================================
 
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.KeyCode == Enum.KeyCode.Insert then
-            MainFrame.Visible = not MainFrame.Visible
+            if MainFrame.Visible then
+                TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(0, 620, 0, 0),
+                    Position = UDim2.new(0.5, -310, 0.5, 0)
+                }):Play()
+                task.wait(0.3)
+                MainFrame.Visible = false
+            else
+                MainFrame.Visible = true
+                MainFrame.BackgroundTransparency = 1
+                MainFrame.Size = UDim2.new(0, 620, 0, 0)
+                MainFrame.Position = UDim2.new(0.5, -310, 0.5, 0)
+                TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    BackgroundTransparency = 0.08,
+                    Size = UDim2.new(0, 620, 0, 560),
+                    Position = UDim2.new(0.5, -310, 0.5, -280)
+                }):Play()
+            end
         end
     end)
 
     -- ==================================================
-    -- БЛОК 15: ЗАВЕРШЕНИЕ
+    -- БЛОК 16: ЗАВЕРШЕНИЕ
     -- ==================================================
-
-    local function ShowNotification(text)
-        local notif = Instance.new("TextLabel")
-        notif.Size = UDim2.new(0, 400, 0, 40)
-        notif.Position = UDim2.new(0.5, -200, 0.9, 0)
-        notif.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
-        notif.BackgroundTransparency = 0.3
-        notif.Text = text
-        notif.TextColor3 = Color3.fromRGB(0, 240, 255)
-        notif.TextSize = 18
-        notif.Font = Enum.Font.GothamBold
-        notif.BorderSizePixel = 0
-        notif.Parent = ScreenGui
-        Debris:AddItem(notif, 3)
-    end
-
-    ShowNotification("Xeno Hub v3.5 загружен! Нажмите Insert для открытия.")
 
     LocalPlayer.CharacterAdded:Connect(function()
         pcall(function()
@@ -1418,11 +1654,10 @@ local success, err = pcall(function()
         if Features.Movement.Fly then ApplyFlyState(true) end
     end)
 
-    print("[Xeno Hub v3.5] Добавлен Skeleton, улучшен дизайн, исправлен Noclip, добавлен Triggerbot.")
+    print("[Xeno Hub] Расширенная версия загружена. Добавлены функции 3,6,8,9,10,11,12,14,19.")
 
 end)
 
 if not success then
     warn("Ошибка загрузки Xeno Hub: " .. tostring(err))
 end
-[file content end]
